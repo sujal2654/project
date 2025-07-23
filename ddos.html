@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DDoS Attack Simulation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #1a1a1a;
+            --bg-tertiary: #2a2a2a;
+            --text-primary: #ffffff;
+            --text-secondary: #b0b0b0;
+            --accent-primary: #00ff88;
+            --accent-danger: #ff3333;
+            --accent-warning: #ffaa00;
+            --border-color: #333333;
+            --shadow: 0 4px 20px rgba(0, 255, 136, 0.1);
+            --glow: 0 0 20px rgba(0, 255, 136, 0.3);
+        }
+
+        body.light-theme {
+            --bg-primary: #f5f5f5;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #f0f0f0;
+            --text-primary: #1a1a1a;
+            --text-secondary: #555555;
+            --border-color: #e0e0e0;
+            --shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            --glow: 0 0 20px rgba(0, 0, 0, 0.1);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            overflow-x: hidden;
+        }
+
+        .header {
+            background: var(--bg-secondary);
+            padding: 1rem 2rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            gap: 1rem;
+            box-shadow: var(--shadow);
+        }
+
+        .title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-primary), #00ccff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 0.5rem;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--glow);
+        }
+
+        .btn.primary {
+            background: linear-gradient(135deg, var(--accent-primary), #00cc6a);
+            color: #0a0a0a;
+        }
+
+        .btn.danger {
+            background: linear-gradient(135deg, var(--accent-danger), #cc0000);
+            color: white;
+        }
+
+        .main-container {
+            display: grid;
+            grid-template-columns: 300px 1fr 300px;
+            gap: 1rem;
+            padding: 1rem;
+            min-height: 0;
+        }
+
+        .panel {
+            background: var(--bg-secondary);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+        }
+
+        .panel h3 {
+            margin-bottom: 1rem;
+            color: var(--accent-primary);
+            font-size: 1.1rem;
+        }
+
+        .control-group {
+            margin-bottom: 1rem;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        select, input[type="range"] {
+            width: 100%;
+            padding: 0.5rem;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            color: var(--text-primary);
+        }
+
+        .simulation-canvas {
+            position: relative;
+            background: radial-gradient(circle at center, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+            border-radius: 1rem;
+            overflow: hidden;
+            min-height: 400px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .server-node {
+            width: 100px;
+            height: 100px;
+            background: radial-gradient(circle, var(--accent-primary), #00cc6a);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            box-shadow: var(--glow);
+            position: relative;
+            z-index: 10;
+            transition: all 0.3s ease;
+        }
+
+        .server-node.overloaded {
+            background: radial-gradient(circle, var(--accent-danger), #cc0000);
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .bot-node {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: var(--accent-warning);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--accent-warning);
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .attack-line {
+            position: absolute;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--accent-danger), transparent);
+            animation: attack 0.5s linear;
+            transform-origin: left center;
+        }
+
+        @keyframes attack {
+            0% { opacity: 0; transform: scaleX(0); }
+            50% { opacity: 1; }
+            100% { opacity: 0; transform: scaleX(1); }
+        }
+
+        .stats {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .stat-card {
+            background: var(--bg-primary);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--accent-primary);
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .health-bar {
+            width: 100%;
+            height: 10px;
+            background: var(--bg-primary);
+            border-radius: 5px;
+            overflow: hidden;
+            margin-top: 0.5rem;
+        }
+
+        .health-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-primary), var(--accent-danger));
+            transition: width 0.3s ease;
+        }
+
+        .log-console {
+            background: #000;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            height: 200px;
+            overflow-y: auto;
+            font-size: 0.8rem;
+            line-height: 1.4;
+        }
+
+        .log-entry {
+            margin-bottom: 0.25rem;
+        }
+
+        .log-entry.warning { color: var(--accent-warning); }
+        .log-entry.critical { color: var(--accent-danger); }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: var(--bg-secondary);
+            padding: 2rem;
+            border-radius: 1rem;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: var(--glow);
+        }
+
+        .close-modal {
+            float: right;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text-secondary);
+        }
+
+        .close-modal:hover {
+            color: var(--text-primary);
+        }
+
+        @media (max-width: 768px) {
+            .main-container {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto auto auto;
+            }
+
+            .controls {
+                justify-content: center;
+            }
+        }
+
+        .theme-toggle {
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            cursor: pointer;
+            font-size: 1.5rem;
+            padding: 0.5rem;
+            border-radius: 50%;
+            transition: transform 0.3s ease;
+        }
+
+        .theme-toggle:hover {
+            transform: rotate(180deg);
+        }
+
+        .latency-graph {
+            width: 100%;
+            height: 100px;
+            background: var(--bg-primary);
+            border-radius: 0.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .graph-line {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 1px;
+            background: var(--accent-primary);
+            transform-origin: left;
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1 class="title">DDoS Attack Simulation</h1>
+        <div class="controls">
+            <button class="btn primary" id="startBtn">Start Simulation</button>
+            <button class="btn" id="pauseBtn" disabled>Pause</button>
+            <button class="btn danger" id="stopBtn" disabled>Stop</button>
+            <button class="btn" id="educateBtn">What is DDoS?</button>
+            <button class="theme-toggle" id="themeToggle">🌙</button>
+        </div>
+    </header>
+
+    <main class="main-container">
+        <aside class="panel">
+            <h3>Attack Configuration</h3>
+            <div class="control-group">
+                <label>Attack Type</label>
+                <select id="attackType">
+                    <option value="syn">SYN Flood</option>
+                    <option value="udp">UDP Flood</option>
+                    <option value="http">HTTP GET Flood</option>
+                    <option value="ping">Ping of Death</option>
+                    <option value="slowloris">Slowloris</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label>Bot Count: <span id="botCountValue">50</span></label>
+                <input type="range" id="botCount" min="10" max="200" value="50">
+            </div>
+            <div class="control-group">
+                <label>Attack Speed: <span id="attackSpeedValue">100</span> req/s</label>
+                <input type="range" id="attackSpeed" min="10" max="1000" value="100">
+            </div>
+            <button class="btn" id="resetBtn">Reset</button>
+        </aside>
+
+        <section class="simulation-canvas" id="simulationCanvas">
+            <div class="server-node" id="serverNode">
+                <span>SERVER</span>
+                <div class="health-bar">
+                    <div class="health-fill" id="healthFill" style="width: 100%"></div>
+                </div>
+            </div>
+        </section>
+
+        <aside class="panel">
+            <h3>Real-Time Analytics</h3>
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-value" id="rpsCounter">0</div>
+                    <div class="stat-label">Requests/sec</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="totalPackets">0</div>
+                    <div class="stat-label">Total Packets</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="botnetSize">0</div>
+                    <div class="stat-label">Botnet Size</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="responseTime">0ms</div>
+                    <div class="stat-label">Response Time</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Latency Graph</div>
+                    <div class="latency-graph" id="latencyGraph"></div>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <footer class="panel" style="margin: 1rem;">
+        <h3>Activity Log</h3>
+        <div class="log-console" id="logConsole"></div>
+    </footer>
+
+    <div class="modal" id="educateModal">
+        <div class="modal-content">
+            <span class="close-modal" id="closeModal">&times;</span>
+            <h2>What is DDoS?</h2>
+            <p><strong>Distributed Denial of Service (DDoS)</strong> attacks aim to overwhelm a target system with massive amounts of traffic, making it unavailable to legitimate users.</p>
+            <h3>Common Attack Types:</h3>
+            <ul>
+                <li><strong>SYN Flood:</strong> Overwhelms with incomplete connection requests</li>
+                <li><strong>UDP Flood:</strong> Floods random ports with UDP packets</li>
+                <li><strong>HTTP GET Flood:</strong> Overwhelms web servers with requests</li>
+                <li><strong>Ping of Death:</strong> Sends oversized ICMP packets</li>
+                <li><strong>Slowloris:</strong> Keeps connections open as long as possible</li>
+            </ul>
+            <h3>Mitigation Techniques:</h3>
+            <ul>
+                <li>Content Delivery Networks (CDNs)</li>
+                <li>Rate limiting and filtering</li>
+                <li>Load balancing</li>
+                <li>Web Application Firewalls (WAF)</li>
+                <li>Anycast network diffusion</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        class DDoSSimulation {
+            constructor() {
+                this.isRunning = false;
+                this.isPaused = false;
+                this.bots = [];
+                this.totalPackets = 0;
+                this.rps = 0;
+                this.responseTime = 0;
+                this.serverHealth = 100;
+                this.attackInterval = null;
+                this.latencyHistory = [];
+
+                this.initializeElements();
+                this.bindEvents();
+                this.updateDisplay();
+            }
+
+            initializeElements() {
+                this.canvas = document.getElementById('simulationCanvas');
+                this.serverNode = document.getElementById('serverNode');
+                this.rpsCounter = document.getElementById('rpsCounter');
+                this.totalPacketsEl = document.getElementById('totalPackets');
+                this.botnetSizeEl = document.getElementById('botnetSize');
+                this.responseTimeEl = document.getElementById('responseTime');
+                this.healthFill = document.getElementById('healthFill');
+                this.logConsole = document.getElementById('logConsole');
+            }
+
+            bindEvents() {
+                document.getElementById('startBtn').addEventListener('click', () => this.start());
+                document.getElementById('pauseBtn').addEventListener('click', () => this.pause());
+                document.getElementById('stopBtn').addEventListener('click', () => this.stop());
+                document.getElementById('resetBtn').addEventListener('click', () => this.reset());
+                document.getElementById('educateBtn').addEventListener('click', () => this.showEducation());
+                document.getElementById('closeModal').addEventListener('click', () => this.hideEducation());
+                document.getElementById('themeToggle').addEventListener('click', () => this.toggleTheme());
+
+                document.getElementById('botCount').addEventListener('input', (e) => {
+                    document.getElementById('botCountValue').textContent = e.target.value;
+                    this.updateBotCount(parseInt(e.target.value));
+                });
+
+                document.getElementById('attackSpeed').addEventListener('input', (e) => {
+                    document.getElementById('attackSpeedValue').textContent = e.target.value;
+                });
+            }
+
+            start() {
+                if (this.isRunning && !this.isPaused) return;
+                
+                this.isRunning = true;
+                this.isPaused = false;
+                
+                document.getElementById('startBtn').disabled = true;
+                document.getElementById('pauseBtn').disabled = false;
+                document.getElementById('stopBtn').disabled = false;
+
+                this.createBots();
+                this.beginAttack();
+                this.log('INFO', 'Simulation started');
+            }
+
+            pause() {
+                this.isPaused = !this.isPaused;
+                document.getElementById('pauseBtn').textContent = this.isPaused ? 'Resume' : 'Pause';
+                this.log('INFO', this.isPaused ? 'Simulation paused' : 'Simulation resumed');
+            }
+
+            stop() {
+                this.isRunning = false;
+                this.isPaused = false;
+                
+                document.getElementById('startBtn').disabled = false;
+                document.getElementById('pauseBtn').disabled = true;
+                document.getElementById('stopBtn').disabled = true;
+                document.getElementById('pauseBtn').textContent = 'Pause';
+
+                clearInterval(this.attackInterval);
+                this.clearBots();
+                this.resetMetrics();
+                this.log('INFO', 'Simulation stopped');
+            }
+
+            reset() {
+                this.stop();
+                this.clearLogs();
+                this.serverHealth = 100;
+                this.updateHealthBar();
+            }
+
+            createBots() {
+                this.clearBots();
+                const botCount = parseInt(document.getElementById('botCount').value);
+                const canvasRect = this.canvas.getBoundingClientRect();
+
+                for (let i = 0; i < botCount; i++) {
+                    const bot = document.createElement('div');
+                    bot.className = 'bot-node';
+                    bot.style.left = Math.random() * (canvasRect.width - 20) + 'px';
+                    bot.style.top = Math.random() * (canvasRect.height - 20) + 'px';
+                    bot.style.animationDelay = Math.random() * 3 + 's';
+                    
+                    this.canvas.appendChild(bot);
+                    this.bots.push(bot);
+                }
+
+                this.botnetSizeEl.textContent = botCount;
+            }
+
+            clearBots() {
+                this.bots.forEach(bot => bot.remove());
+                this.bots = [];
+            }
+
+            beginAttack() {
+                const attackSpeed = parseInt(document.getElementById('attackSpeed').value);
+                const attackType = document.getElementById('attackType').value;
+
+                this.attackInterval = setInterval(() => {
+                    if (this.isPaused) return;
+
+                    this.simulateAttack(attackType, attackSpeed);
+                    this.updateMetrics();
+                    this.updateVisualization();
+                }, 1000);
+            }
+
+            simulateAttack(type, speed) {
+                this.rps = speed;
+                this.totalPackets += speed;
+                
+                // Simulate response time increase
+                this.responseTime = Math.min(this.responseTime + Math.random() * 10, 5000);
+                
+                // Reduce server health based on attack intensity
+                const damage = speed / 100;
+                this.serverHealth = Math.max(0, this.serverHealth - damage);
+
+                // Random bot attack
+                if (this.bots.length > 0) {
+                    const randomBot = this.bots[Math.floor(Math.random() * this.bots.length)];
+                    this.createAttackLine(randomBot);
+                }
+
+                if (this.serverHealth < 30 && this.serverHealth > 29) {
+                    this.log('CRITICAL', 'Server is overloaded!');
+                    this.serverNode.classList.add('overloaded');
+                } else if (this.serverHealth < 60 && this.serverHealth > 59) {
+                    this.log('WARNING', 'Server under heavy load');
+                }
+
+                // Add log entry occasionally
+                if (Math.random() < 0.3) {
+                    const botId = Math.floor(Math.random() * this.bots.length) + 1;
+                    const packetCount = Math.floor(Math.random() * 1000) + 100;
+                    this.log('INFO', `Bot #${botId} sent ${packetCount} ${type.toUpperCase()} packets`);
+                }
+            }
+
+            createAttackLine(bot) {
+                const line = document.createElement('div');
+                line.className = 'attack-line';
+                
+                const botRect = bot.getBoundingClientRect();
+                const serverRect = this.serverNode.getBoundingClientRect();
+                
+                const x1 = botRect.left + botRect.width / 2;
+                const y1 = botRect.top + botRect.height / 2;
+                const x2 = serverRect.left + serverRect.width / 2;
+                const y2 = serverRect.top + serverRect.height / 2;
+                
+                const length = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+                const angle = Math.atan2(y2 - y1, x2 - x1);
+                
+                line.style.width = length + 'px';
+                line.style.left = x1 + 'px';
+                line.style.top = y1 + 'px';
+                line.style.transform = `rotate(${angle}rad)`;
+                
+                this.canvas.appendChild(line);
+                
+                setTimeout(() => line.remove(), 500);
+            }
+
+            updateMetrics() {
+                this.rpsCounter.textContent = this.rps;
+                this.totalPacketsEl.textContent = this.totalPackets.toLocaleString();
+                this.responseTimeEl.textContent = Math.round(this.responseTime) + 'ms';
+                
+                this.updateHealthBar();
+                this.updateLatencyGraph();
+            }
+
+            updateHealthBar() {
+                this.healthFill.style.width = this.serverHealth + '%';
+                
+                if (this.serverHealth < 30) {
+                    this.healthFill.style.background = 'var(--accent-danger)';
+                } else if (this.serverHealth < 60) {
+                    this.healthFill.style.background = 'var(--accent-warning)';
+                } else {
+                    this.healthFill.style.background = 'var(--accent-primary)';
+                }
+            }
+
+            updateLatencyGraph() {
+                const graph = document.getElementById('latencyGraph');
+                this.latencyHistory.push(this.responseTime);
+                if (this.latencyHistory.length > 50) this.latencyHistory.shift();
+
+                graph.innerHTML = '';
+                const maxValue = Math.max(...this.latencyHistory, 1);
+                
+                this.latencyHistory.forEach((value, index) => {
+                    const bar = document.createElement('div');
+                    bar.style.position = 'absolute';
+                    bar.style.bottom = '0';
+                    bar.style.left = (index * 2) + 'px';
+                    bar.style.width = '2px';
+                    bar.style.height = (value / maxValue * 100) + '%';
+                    bar.style.background = 'var(--accent-primary)';
+                    graph.appendChild(bar);
+                });
+            }
+
+            updateDisplay() {
+                // Continuous updates for floating bots
+                if (this.isRunning && !this.isPaused) {
+                    this.bots.forEach(bot => {
+                        const currentLeft = parseFloat(bot.style.left);
+                        const currentTop = parseFloat(bot.style.top);
+                        
+                        // Small random movements
+                        bot.style.left = (currentLeft + (Math.random() - 0.5) * 2) + 'px';
+                        bot.style.top = (currentTop + (Math.random() - 0.5) * 2) + 'px';
+                    });
+                }
+                
+                requestAnimationFrame(() => this.updateDisplay());
+            }
+
+            resetMetrics() {
+                this.totalPackets = 0;
+                this.rps = 0;
+                this.responseTime = 0;
+                this.latencyHistory = [];
+                this.serverHealth = 100;
+                
+                this.rpsCounter.textContent = '0';
+                this.totalPacketsEl.textContent = '0';
+                this.responseTimeEl.textContent = '0ms';
+                
+                this.serverNode.classList.remove('overloaded');
+                document.getElementById('latencyGraph').innerHTML = '';
+            }
+
+            updateBotCount(count) {
+                if (this.isRunning) {
+                    this.createBots();
+                }
+            }
+
+            log(level, message) {
+                const entry = document.createElement('div');
+                entry.className = `log-entry ${level.toLowerCase()}`;
+                const time = new Date().toLocaleTimeString();
+                entry.textContent = `[${time}] ${message}`;
+                
+                this.logConsole.appendChild(entry);
+                this.logConsole.scrollTop = this.logConsole.scrollHeight;
+                
+                // Keep only last 100 entries
+                while (this.logConsole.children.length > 100) {
+                    this.logConsole.removeChild(this.logConsole.firstChild);
+                }
+            }
+
+            clearLogs() {
+                this.logConsole.innerHTML = '';
+            }
+
+            showEducation() {
+                document.getElementById('educateModal').style.display = 'flex';
+            }
+
+            hideEducation() {
+                document.getElementById('educateModal').style.display = 'none';
+            }
+
+            toggleTheme() {
+                document.body.classList.toggle('light-theme');
+                const toggle = document.getElementById('themeToggle');
+                toggle.textContent = document.body.classList.contains('light-theme') ? '☀️' : '🌙';
+            }
+        }
+
+        // Initialize simulation when page loads
+        const simulation = new DDoSSimulation();
+    </script>
+</body>
+</html>
